@@ -54,6 +54,13 @@ Deno.serve(async (req) => {
         .from("records")
         .select("*")
         .eq("owner_id", owner_id)
+        .or(
+          "and(kind.eq.event,day.eq." +
+            day +
+            "),and(kind.eq.task,done.eq.false,or(day.is.null,day.lte." +
+            day +
+            "))",
+        )
         .order("id")
         .range(n, n + 499)
         .throwOnError();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   time,
@@ -41,13 +41,12 @@ export default function Home() {
     [email, E] = useState(""),
     [password, P] = useState("");
   const [today, Y] = useState(() => dayOf());
-  const [chatIds, setChatIds] = useState<string[]>([]);
-  const currentMessages = messages.filter((message) =>
-    chatIds.includes(message.id),
-  );
+  const [currentMessages, setCurrentMessages] = useState<any[]>([]);
+  const chatSession = useRef(0);
   function openTab(next: number) {
-    if (next === 1 && tab !== 1) {
-      setChatIds([]);
+    if (next !== tab) {
+      chatSession.current++;
+      setCurrentMessages([]);
       I("");
     }
     T(next);
@@ -55,7 +54,8 @@ export default function Home() {
   useEffect(() => {
     const reset = () => {
       if (document.visibilityState === "hidden") {
-        setChatIds([]);
+        chatSession.current++;
+        setCurrentMessages([]);
         I("");
       }
     };
@@ -74,6 +74,8 @@ export default function Home() {
       if (!s) {
         R([]);
         M([]);
+        chatSession.current++;
+        setCurrentMessages([]);
       }
     });
     return () => subscription?.data.subscription.unsubscribe();
@@ -351,15 +353,26 @@ export default function Home() {
               run(async () => {
                 if (!token) throw Error("请先登录");
                 const id = crypto.randomUUID();
-                setChatIds((previous) => [...previous, id]);
-                await api({
+                const session = chatSession.current;
+                const question = input;
+                const answer = await api({
                   mode: "chat",
                   id,
-                  historyIds: chatIds.slice(-12),
-                  question: input,
+                  question,
+                  history: currentMessages
+                    .slice(-12)
+                    .map((m) => ({
+                      question: m.question,
+                      reply: m.answer.reply,
+                    })),
                 });
-                I("");
-                await refresh();
+                if (session === chatSession.current) {
+                  setCurrentMessages((previous) => [
+                    ...previous,
+                    { id, question, answer },
+                  ]);
+                  I("");
+                }
               });
             }}
           >
@@ -390,7 +403,7 @@ export default function Home() {
                   {v}
                 </option>
               ))}
-              <option value="chat">聊天记录</option>
+              <option value="chat">旧版聊天记录</option>
             </select>{" "}
             <button onClick={() => D(fresh())}>＋ 新记录</button>
             {records

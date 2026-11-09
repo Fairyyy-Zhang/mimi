@@ -12,7 +12,15 @@ const fail = (error: string, status: number) =>
 const request = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("chat"),
-    historyIds: z.array(z.uuid()).max(12).default([]),
+    history: z
+      .array(
+        z.object({
+          question: z.string().max(4000),
+          reply: z.string().max(4000),
+        }),
+      )
+      .max(12)
+      .default([]),
     id: z.uuid(),
     question: z.string().trim().min(1).max(4000),
   }),
@@ -30,6 +38,7 @@ const request = z.discriminatedUnion("mode", [
     question: z.string().trim().min(1).max(4000),
   }),
 ]);
+let recentRequests: number[] = [];
 async function handler(req: Request) {
   const token = req.headers.get("Authorization");
   if (!token?.startsWith("Bearer ")) return fail("请先登录", 401);
@@ -115,50 +124,34 @@ async function handler(req: Request) {
     }
     return Response.json({ ok: true });
   }
-  const cached = await db
-    .from("messages")
-    .select("answer")
-    .eq("id", b.id)
-    .maybeSingle()
-    .throwOnError();
-  if (cached.data?.answer) return Response.json(cached.data.answer);
-  const { count } = await db
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", new Date(Date.now() - 60000).toISOString())
-    .throwOnError();
-  if ((count ?? 0) >= 12) return fail("请稍后再聊，每分钟最多 12 条", 429);
-  const claim = await db
-    .from("messages")
-    .insert({ id: b.id, question: b.question });
-  if (claim.error) return fail("消息已提交，请刷新聊天记录", 409);
+  // Only the whitelisted owner reaches this point. Keep request timestamps per server instance.
+  const now = Date.now();
+  recentRequests = recentRequests.filter((time) => now - time < 60000);
+  if (recentRequests.length >= 12)
+    return fail("请稍后再聊，每分钟最多 12 条", 429);
+  recentRequests.push(now);
   let answer;
   try {
-    const [records, history] = await Promise.all([
-      rows("records"),
-      b.historyIds.length
-        ? db
-            .from("messages")
-            .select("question,answer")
-            .eq("owner_id", user.id)
-            .in("id", b.historyIds)
-            .order("created_at")
-            .throwOnError()
-        : Promise.resolve({ data: [] }),
-    ]);
-    const result = await interpret({
+    const records = await rows("records");
+    const proposal = await interpret({
       today: dayOf(),
       records,
       plan: plan(records, dayOf()),
-      history: history.data,
+      history: b.history,
       question: b.question,
     });
+    const actions = proposal.actions.filter(
+      (a) =>
+        a.op !== "create" || ["task", "event", "goal"].includes(a.value.kind),
+    );
     answer = {
-      ...result,
-      reply: result.actions.length
+      ...proposal,
+      reply: actions.length
         ? "我整理好了下面的建议。请逐项核对，确认后保存。"
-        : result.reply,
-      actions: result.actions.map((a) => {
+        : proposal.actions.length
+          ? "这段内容留在本次聊天里。"
+          : proposal.reply,
+      actions: actions.map((a) => {
         const target =
           a.op === "create" ? null : records.find((r) => r.id === a.id);
         if (a.op !== "create" && !target) throw Error("找不到要修改的记录");
@@ -176,7 +169,7 @@ async function handler(req: Request) {
       actions: [],
     };
   }
-  await db.from("messages").update({ answer }).eq("id", b.id).throwOnError();
+
   return Response.json(answer);
 }
 async function serve(req: Request) {
