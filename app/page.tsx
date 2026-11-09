@@ -41,6 +41,27 @@ export default function Home() {
     [email, E] = useState(""),
     [password, P] = useState("");
   const [today, Y] = useState(() => dayOf());
+  const [chatIds, setChatIds] = useState<string[]>([]);
+  const currentMessages = messages.filter((message) =>
+    chatIds.includes(message.id),
+  );
+  function openTab(next: number) {
+    if (next === 1 && tab !== 1) {
+      setChatIds([]);
+      I("");
+    }
+    T(next);
+  }
+  useEffect(() => {
+    const reset = () => {
+      if (document.visibilityState === "hidden") {
+        setChatIds([]);
+        I("");
+      }
+    };
+    document.addEventListener("visibilitychange", reset);
+    return () => document.removeEventListener("visibilitychange", reset);
+  }, []);
   useEffect(() => {
     const timer = setInterval(() => Y(dayOf()), 30000);
     return () => clearInterval(timer);
@@ -217,7 +238,7 @@ export default function Home() {
             <p>
               {schedule.top.join(" · ") || "把想做的事告诉我，我们一起安排。"}
             </p>
-            <button onClick={() => T(1)}>✦　与 Mimi 聊聊　↗</button>
+            <button onClick={() => openTab(1)}>✦　与 Mimi 聊聊　↗</button>
           </section>
           <section>
             <h2>今日时间轴</h2>
@@ -254,10 +275,10 @@ export default function Home() {
       {tab === 1 && (
         <>
           <section>
-            {messages.length === 0 && (
+            {currentMessages.length === 0 && (
               <p>想记下什么？也可以问我今天有哪些安排。</p>
             )}
-            {messages.map((m) => (
+            {currentMessages.map((m) => (
               <div key={m.id}>
                 <p className="bubble">{m.question}</p>
                 <p>{m.answer?.reply || "等待回复"}</p>
@@ -329,9 +350,12 @@ export default function Home() {
               e.preventDefault();
               run(async () => {
                 if (!token) throw Error("请先登录");
+                const id = crypto.randomUUID();
+                setChatIds((previous) => [...previous, id]);
                 await api({
                   mode: "chat",
-                  id: crypto.randomUUID(),
+                  id,
+                  historyIds: chatIds.slice(-12),
                   question: input,
                 });
                 I("");
@@ -569,7 +593,7 @@ export default function Home() {
           <button
             aria-current={tab === n ? "page" : undefined}
             key={s}
-            onClick={() => T(n)}
+            onClick={() => openTab(n)}
           >
             {["◷", "✦", "▤"][n]}　{s}
           </button>

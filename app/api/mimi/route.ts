@@ -12,6 +12,7 @@ const fail = (error: string, status: number) =>
 const request = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("chat"),
+    historyIds: z.array(z.uuid()).max(12).default([]),
     id: z.uuid(),
     question: z.string().trim().min(1).max(4000),
   }),
@@ -133,15 +134,23 @@ async function handler(req: Request) {
   if (claim.error) return fail("消息已提交，请刷新聊天记录", 409);
   let answer;
   try {
-    const [records, messages] = await Promise.all([
+    const [records, history] = await Promise.all([
       rows("records"),
-      rows("messages"),
+      b.historyIds.length
+        ? db
+            .from("messages")
+            .select("question,answer")
+            .eq("owner_id", user.id)
+            .in("id", b.historyIds)
+            .order("created_at")
+            .throwOnError()
+        : Promise.resolve({ data: [] }),
     ]);
     const result = await interpret({
       today: dayOf(),
       records,
       plan: plan(records, dayOf()),
-      history: messages.slice(-12),
+      history: history.data,
       question: b.question,
     });
     answer = {
