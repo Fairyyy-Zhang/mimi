@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { interpret, operation } from "../../../lib/model";
+import { interpret, operation, chatFailure } from "../../../lib/model";
 import { dayOf, plan } from "../../../supabase/functions/_shared/plan.mjs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 const fail = (error: string, status: number) =>
   Response.json(
     { error },
@@ -160,9 +161,9 @@ async function handler(req: Request) {
         };
       }),
     };
-  } catch {
+  } catch (error) {
     answer = {
-      reply: "连接模型或解析建议失败。请稍后重新发送，或直接在灵感箱添加记录。",
+      reply: chatFailure(error),
       actions: [],
     };
   }
