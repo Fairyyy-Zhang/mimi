@@ -35,24 +35,7 @@ npm run dev
 
 ## 开启每日邮件
 
-1. 在 Resend 配置已验证的发信域名和发件地址，生成发信 API key。准备自己的收件邮箱。
-2. 在 Supabase Edge Function Secrets 设置 MIMI_OWNER_ID、RESEND_API_KEY、MAIL_FROM、MAIL_TO 和随机生成的长密钥 MIMI_CRON_SECRET。Edge 运行环境提供 SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY。
-3. 使用已登录的 Supabase CLI，从当前目录部署函数。将 PROJECT_REF 换成项目标识。函数使用独立 Bearer 密钥鉴权。
-
-   ```sh
-   supabase functions deploy daily --project-ref PROJECT_REF --no-verify-jwt
-   ```
-
-4. 手动预览。下面是 PowerShell 命令，先把本次会话环境变量 MIMI_CRON_SECRET 设为函数相同的值。预览不会占用当天发信名额。移除问号及其后内容，重新执行即测试真实发送，占用当天名额。缺少发信凭证会返回预览。
-
-   ```powershell
-   $dailyUrl = 'https://PROJECT_REF.supabase.co/functions/v1/daily'
-   $headers = @{Authorization = 'Bearer ' + $env:MIMI_CRON_SECRET}
-   Invoke-RestMethod -Method Post -Uri ($dailyUrl + '?preview=1') -Headers $headers
-   ```
-
-5. 在 Supabase Vault 创建 mimi_daily_url（上述完整函数地址）和 mimi_cron_secret（相同密钥）。在 SQL Editor 执行 `supabase/cron.sql`。脚本检查 cron.timezone，使用 UTC 01:00，对应北京时间 09:00。01:05 和 01:10 触发两次补偿检查。数据库按用户和日期原子领取发送资格，Resend 使用相同日期幂等键。当日成功后跳过重发。
-6. 查看 daily_plans 的计划快照、email_delivery_logs 的状态与尝试次数，以及 cron.job_run_details 和函数日志。sent 表示邮件服务接受，收件和垃圾箱仍需检查。凭证缺失时返回 sent=false。恢复后可再次手动触发。
+发信已切换为 Google Apps Script。请按 [Google 邮件配置](GOOGLE_MAIL_SETUP.md) 配置与部署；当前尚未完成云端验收。每日计划仍使用现有规则规划。
 
 ## 部署并安装到 iPhone
 

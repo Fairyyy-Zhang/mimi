@@ -1,6 +1,6 @@
 export const dayOf = (instant = Date.now()) =>
   new Date(Number(new Date(instant)) + 8 * 3600000).toISOString().slice(0, 10);
-export function plan(records, day) {
+export function plan(records, day, fromMinute = 540, includeEarlierEvents = false) {
   const tasks = records
     .filter((r) => r.kind === "task" && !r.done && (!r.day || r.day <= day))
     .sort(
@@ -9,7 +9,8 @@ export function plan(records, day) {
         (a.day || "9999").localeCompare(b.day || "9999"),
     );
   const events = records
-    .filter((r) => r.kind === "event" && r.day === day)
+    .filter((r) => r.kind === "event" && r.day === day &&
+      (includeEarlierEvents || fromMinute === 540 || (!r.done && r.minute + r.duration > fromMinute)))
     .sort((a, b) => a.minute - b.minute);
   const items = events.map((e) => ({
     title: e.title,
@@ -22,7 +23,7 @@ export function plan(records, day) {
     .map((e) => e.title);
   function gaps() {
     const free = [];
-    let cursor = 540;
+    let cursor = fromMinute;
     for (const i of [...items].sort((a, b) => a.start - b.start)) {
       if (i.start > cursor && cursor < 1080)
         free.push([cursor, Math.min(1080, i.start)]);
@@ -45,6 +46,7 @@ export function plan(records, day) {
   }
   return {
     day,
+    fromMinute,
     top: tasks.slice(0, 3).map((t) => t.title),
     items: items.sort((a, b) => a.start - b.start),
     free: gaps(),
