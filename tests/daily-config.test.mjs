@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
-import { buildBrief, renderBrief } from "../supabase/functions/_shared/brief.mjs";
+import { buildBrief, dayTimeline, renderBrief } from "../supabase/functions/_shared/brief.mjs";
 import vm from "node:vm";
 import { mailEdition, afternoonChanges } from "../supabase/functions/_shared/editions.mjs";
 import { dayOf, plan, time } from "../supabase/functions/_shared/plan.mjs";
@@ -57,7 +57,7 @@ test("预览保留查询错误码，隐藏原始数据，空日程也可以预�
     SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test" };
   vm.runInNewContext(code, {
     Deno: { env: { get: k => settings[k] }, serve: fn => { handler = fn; } },
-    Response, URL, dayOf, plan, time, buildBrief, renderBrief, mailEdition, afternoonChanges,
+    Response, URL, dayOf, plan, time, buildBrief, dayTimeline, renderBrief, mailEdition, afternoonChanges,
     createClient: () => ({ from(table) { assert.equal(table, "records"); return query; } }),
   });
   const req = new Request("https://example.supabase.co/functions/v1/daily?preview=1", {

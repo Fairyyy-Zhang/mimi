@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { plan } from "../_shared/plan.mjs";
-import { buildBrief, renderBrief } from "../_shared/brief.mjs";
+import { buildBrief, dayTimeline, renderBrief } from "../_shared/brief.mjs";
 import { mailEdition, afternoonChanges } from "../_shared/editions.mjs";
 const env = (k: string) => Deno.env.get(k);
 async function callMailScript(data: Record<string, unknown>) {
@@ -103,11 +103,12 @@ Deno.serve(async (req) => {
       !env("MIMI_MAIL_SIGNING_SECRET") ||
       !env("MAIL_TO");
     const makePlan = async () => {
-      const current = await buildBrief(plan(records, day, edition === "afternoon" ? 870 : 540, true), records, env("DEEPSEEK_API_KEY")?.trim());
+      const current = await buildBrief(plan(records, day, edition === "afternoon" ? 870 : 540, true), records, env("DEEPSEEK_API_KEY")?.trim(), edition);
       if (edition !== "afternoon") return current;
       const {data: baseline} = await db.from("daily_plans").select("plan")
         .eq("owner_id",owner_id).eq("day",sentDay).maybeSingle().throwOnError();
-      return {...current, changes:afternoonChanges(baseline?.plan, current)};
+      const morningTimeline = baseline?.plan ? dayTimeline(baseline.plan).filter(i => i.start < 870) : [];
+      return {...current, morningTimeline, changes:afternoonChanges(baseline?.plan, current)};
     };
     if (new URL(req.url).searchParams.has("preview")) {
       return Response.json({ sent: false, edition, subject, preview: renderBrief(await makePlan(), edition) });

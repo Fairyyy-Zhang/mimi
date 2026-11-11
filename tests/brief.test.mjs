@@ -2,9 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildBrief,
+  dayTimeline,
   renderBrief,
 } from "../supabase/functions/_shared/brief.mjs";
 import { plan } from "../supabase/functions/_shared/plan.mjs";
+import { planningSkill } from "../supabase/functions/_shared/daily-planning/rules.mjs";
+
+test("下午回看晨间建议并保留当天固定日程，缺少快照时标明未记录", () => {
+  const morningTimeline = dayTimeline({items:[{start:600,end:645,title:"项目准备",fixed:false}]});
+  const p = {items:[{start:840,end:900,title:"会议",fixed:true}], morningTimeline};
+  const rows = dayTimeline(p, true);
+  assert.ok(rows.some(i => i.title === "项目准备（晨间计划）"));
+  assert.equal(rows[0].start,450);
+  assert.equal(rows.at(-1).end,1320);
+  assert.ok(rows.every((r,i) => !i || rows[i-1].end === r.start));
+  assert.equal(dayTimeline({...p,morningTimeline:[]},true)[0].title,"未记录");
+});
 
 test("邮件只参考当天安排和长期目标，建议不能占用固定时间", async (t) => {
   const day = "2026-11-10";
@@ -27,7 +40,9 @@ test("邮件只参考当天安排和长期目标，建议不能占用固定时�
   ];
   const p = plan(records, day);
   t.mock.method(globalThis, "fetch", async (_, options) => {
-    const input = JSON.parse(JSON.parse(options.body).messages[1].content);
+    const messages = JSON.parse(options.body).messages;
+    assert.ok(messages[0].content.includes(planningSkill));
+    const input = JSON.parse(messages[1].content);
     assert.deepEqual(input.sources.map(r => r.title), [records[0].title, records[2].title]);
     return Response.json({
       choices: [
@@ -58,6 +73,7 @@ test("邮件只参考当天安排和长期目标，建议不能占用固定时�
     /日历已安排.*17:00–18:00.*运动 &lt;一小时&gt;，测试场次待定。.*建议安排.*19:00–19:40.*挑一段经历/s,
   );
   assert.doesNotMatch(html, /更改日历|冲突时段|无依据/);
+  assert.match(html, /建议安排（今日全天）.*07:30.*【已确定】运动.*自由活动.*22:00/s);
   assert.equal(brief.suggestions.length, 1);
   assert.deepEqual(brief.items, p.items);
 });

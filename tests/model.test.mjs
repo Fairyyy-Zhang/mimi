@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { interpret, record, chatFailure } from "../lib/model.ts";
+import { planningSkill } from "../supabase/functions/_shared/daily-planning/rules.mjs";
 test("模型故障分类、超时和隐私保护", async () => {
   const original = globalThis.fetch;
   const previous = process.env.DEEPSEEK_API_KEY;
@@ -37,6 +38,7 @@ test("模型故障分类、超时和隐私保护", async () => {
     }
     globalThis.fetch = async (_url, options) => {
       const body = JSON.parse(options.body);
+      assert.ok(body.messages[0].content.includes(planningSkill));
       assert.deepEqual(body.thinking, { type: "disabled" });
       assert.equal(options.headers.Authorization, "Bearer fixture");
       return Response.json({
